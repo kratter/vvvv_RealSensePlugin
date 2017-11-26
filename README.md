@@ -1,6 +1,8 @@
 # vvvv - Intel RealSense Plugin
 vvvv Intel Realsense SDK 2016.r2 
 
+Rebuilded Aoi repo: https://github.com/aoi/vvvv_RealSensePlugin
+
 Node list
 
 |node|content|
