@@ -6,6 +6,7 @@ using VVVV.PluginInterfaces.V1;
 using VVVV.PluginInterfaces.V2;
 
 using VVVV.DX11;
+using VVVV.DX11.Lib;
 using VVVV.Utils.VMath;
 
 using SlimDX.Direct3D11;
@@ -19,7 +20,7 @@ using System.Threading.Tasks;
 
 namespace RealSense.Nodes
 {
-    public abstract class BaseNode : IPluginEvaluate, IDX11ResourceProvider, IDisposable
+    public abstract class BaseNode : IPluginEvaluate, IDX11ResourceHost, IDisposable
     {
 
         protected int width = 640;
@@ -199,7 +200,7 @@ namespace RealSense.Nodes
             }
         }
 
-        public void Update(IPluginIO pin, DX11RenderContext context)
+        public void Update(DX11RenderContext context)
         {
             if (!this.FInEnabled[0] || !this.initialized || this.image == null) { return; }
 
@@ -284,7 +285,7 @@ namespace RealSense.Nodes
 
         }
 
-        public void Destroy(IPluginIO pin, DX11RenderContext context, bool force)
+        public void Destroy(DX11RenderContext context, bool force)
         {
             this.FTextureOutput[0].Dispose(context);
         }

@@ -20,7 +20,7 @@ using VVVV.Core.Logging;
 namespace RealSense.Nodes
 {
 
-    [PluginInfo(Name = "3DScan", Category = "RealSense", Version = "Intel(R)", Help = "RealSense 3DScan.", Tags = "RealSense, DX11, texture", Author = "aoi")]
+    [PluginInfo(Name = "3DScan", Category = "RealSense", Version = "Intel", Help = "RealSense 3DScan.", Tags = "RealSense, DX11, texture", Author = "aoi")]
     public class _3DScanNode : BaseNode
     {
         private PXCM3DScan scanner;
@@ -41,42 +41,47 @@ namespace RealSense.Nodes
         [Input("Scan", IsSingle = true, DefaultBoolean = false)]
         private IDiffSpread<bool> FInScan;
 
-        //[Input("Reconstruct", IsSingle = true, DefaultBoolean = false)]
-        //private ISpread<bool> FInReconstruct;
-
         [Output("Status", IsSingle = true, DefaultString = "")]
         private ISpread<string> FOutStatus;
 
         private int prevWidth = 0;
         private int prevHeight = 0;
 
-
         protected override bool Initialize()
         {
+            this.width = 320;
+            this.height = 240;
+
             this.GetSessionAndSenseManager();
 
             pxcmStatus sts = this.senseManager.Enable3DScan();
             if (sts < pxcmStatus.PXCM_STATUS_NO_ERROR)
             {
-                throw new Exception("Could not enable 3D Scan.");
+                throw new Exception("3Dスキャンの有効化に失敗しました");
             }
 
-            this.StartScan();
+            this.InitSenseManager();
 
+            this.Initialize3DScan();
+
+            this.initializing = false;
             this.initialized = true;
 
             return true;
         }
 
-        private void StartScan()
+        private void Initialize3DScan()
         {
-            // get scanner
+            // スキャナーを取得する
             this.scanner = this.senseManager.Query3DScan();
             if (this.scanner == null)
             {
-                throw new Exception("Could not get 3D Scan.");
+                throw new Exception("スキャナーの取得に失敗しました");
             }
+        }
 
+        private void StartScan()
+        {
             if (this.scanner == null)
             {
                 return;
@@ -92,10 +97,9 @@ namespace RealSense.Nodes
             pxcmStatus sts = this.scanner.SetConfiguration(config);
             if (sts < pxcmStatus.PXCM_STATUS_NO_ERROR)
             {
-                throw new Exception("Could not set 3D Scan configuration.");
+                throw new Exception("スキャナーの設定に失敗しました");
             }
 
-            this.InitSenseManager();
         }
 
         private void EndScan()
@@ -117,7 +121,7 @@ namespace RealSense.Nodes
             pxcmStatus sts = this.scanner.SetConfiguration(config);
             if (sts < pxcmStatus.PXCM_STATUS_NO_ERROR)
             {
-                throw new Exception("Could not set 3D Scan configuration.");
+                throw new Exception("スキャナーの設定に失敗しました");
             }
 
             this.Uninitialize();
@@ -142,8 +146,8 @@ namespace RealSense.Nodes
 
         protected override void UpdateFrame()
         {
-
-            pxcmStatus ret = this.senseManager.AcquireFrame(true);
+            // フレームを取得する
+            pxcmStatus ret = this.senseManager.AcquireFrame(false);
             if (ret < pxcmStatus.PXCM_STATUS_NO_ERROR)
             {
                 if (ret == pxcmStatus.PXCM_STATUS_EXEC_ABORTED)
@@ -152,17 +156,32 @@ namespace RealSense.Nodes
                 }
                 else
                 {
-                    throw new Exception("Could not acquire frame. " + ret.ToString());
+                    throw new Exception("フレームの取得に失敗しました: " + ret.ToString());
                 }
+            }
 
+            if (this.scanner != null)
+            {
                 this.image = this.scanner.AcquirePreviewImage();
                 if (this.image != null)
                 {
                     this.invalidate = true;
                 }
 
-                this.senseManager.ReleaseFrame();
+                if (FInScan.IsChanged)
+                {
+                    if (FInScan[0])
+                    {
+                        this.StartScan();
+                    }
+                    else
+                    {
+                        this.EndScan();
+                    }
+                }
             }
+
+            this.senseManager.ReleaseFrame();
 
             FOutStatus.SliceCount = 1;
             if (this.scanner.IsScanning())
@@ -180,6 +199,7 @@ namespace RealSense.Nodes
         {
             if (this.image == null) { return null; }
 
+            // データを取得する
             PXCMImage.ImageData data;
             pxcmStatus ret = this.image.AcquireAccess(
                 PXCMImage.Access.ACCESS_READ,
@@ -188,9 +208,10 @@ namespace RealSense.Nodes
 
             if (ret < pxcmStatus.PXCM_STATUS_NO_ERROR)
             {
-                throw new Exception("Could not get Color image.");
+                throw new Exception("カラー画像の取得に失敗");
             }
 
+            // バイト配列に変換する
             var info = this.image.QueryInfo();
 
             this.width = info.width;
@@ -212,6 +233,7 @@ namespace RealSense.Nodes
 
             var buffer = data.ToByteArray(0, length);
 
+            // データを開放する
             this.image.ReleaseAccess(data);
 
             return buffer;
